@@ -1,0 +1,59 @@
+name: Reusable Workflow | Test Spec Haskell
+
+on:
+  workflow_call:
+
+jobs:
+  test-spec-haskell:
+    name: Test Spec Haskell - Linux - ${{ matrix.compiler-name }}
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        include:
+          - compiler-name: ghc-9.4
+            dev-shell-name: ci-spec-ghc94
+      fail-fast: false
+
+    defaults:
+      run:
+        shell: nix develop .#${{ matrix.dev-shell-name }} -c bash -xe {0}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup workflow base
+        id: base
+        uses: ./.github/actions/setup-workflow-base
+        with:
+          package-name: spec-haskell
+          cache-key-prefix: spec-haskell-${{ matrix.compiler-name }}-
+          dev-shell-name: ${{ matrix.dev-shell-name }}
+
+      - name: Run cabal update
+        if: steps.base.outputs.cache-hit != 'true'
+        run: |
+          cabal v2-update
+          cabal --version
+          ghc --version
+
+      - name: Run lint
+        if: steps.base.outputs.cache-hit != 'true'
+        run: make lint
+        working-directory: packages/spec-haskell
+
+      - name: Run build
+        if: steps.base.outputs.cache-hit != 'true'
+        run: make build
+        working-directory: packages/spec-haskell
+
+      - name: Run tests
+        if: steps.base.outputs.cache-hit != 'true'
+        run: make test
+        working-directory: packages/spec-haskell
+
+      - name: Make haddock docs
+        if: steps.base.outputs.cache-hit != 'true'
+        run: make docs-haddock
+        working-directory: packages/spec-haskell

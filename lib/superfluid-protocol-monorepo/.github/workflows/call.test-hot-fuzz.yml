@@ -1,0 +1,41 @@
+name: Reusable Workflow | Test HotFuzz
+
+on:
+  workflow_call:
+
+jobs:
+  test-spec-haskell:
+    name: Test HotFuzz - Linux
+
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        shell: nix develop .#ci-hot-fuzz -c bash -xe {0}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup workflow base
+        id: base
+        uses: ./.github/actions/setup-workflow-base
+        with:
+          package-name: hot-fuzz
+          cache-key-prefix: hot-fuzz-
+          dev-shell-name: ci-hot-fuzz
+
+      - name: Install dependencies
+        if: steps.base.outputs.cache-hit != 'true'
+        run: |
+          yarn install
+          solc --version
+          forge --version
+          slither --version
+          echidna --version
+
+      - name: Run tests
+        if: steps.base.outputs.cache-hit != 'true'
+        run: ./hot-fuzz contracts/superfluid-tests/SuperHotFuzz.yaml
+        working-directory: packages/hot-fuzz
+        env:
+          ECHIDNA_TEST_LIMIT: 20000

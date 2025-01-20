@@ -1,0 +1,52 @@
+name: Reusable Workflow | Automation Contracts
+
+on:
+  workflow_call:
+
+jobs:
+  test-automation-contract:
+    name: Test Automation Contracts
+
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        shell: nix develop .#ci-default -c bash -xe {0}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup workflow base
+        id: base
+        uses: ./.github/actions/setup-workflow-base
+        with:
+          package-name: automation-contracts
+          cache-key-prefix: automation-contracts-
+          dev-shell-name: ci-default
+
+      - name: Install dependencies
+        if: steps.base.outputs.cache-hit != 'true'
+        run: |
+          yarn install --frozen-lockfile
+          solc --version
+          forge --version
+
+      - name: Lint and build
+        if: steps.base.outputs.cache-hit != 'true'
+        run: |
+          yarn lint
+          yarn build
+
+      - name: Test automation-contracts-scheduler
+        if: steps.base.outputs.cache-hit != 'true'
+        run: |
+          yarn workspace scheduler test
+        env:
+          FOUNDRY_PROFILE: ci
+
+      - name: Test automation-contracts-autowrap
+        if: steps.base.outputs.cache-hit != 'true'
+        run: |
+          yarn workspace autowrap test
+        env:
+          FOUNDRY_PROFILE: ci
