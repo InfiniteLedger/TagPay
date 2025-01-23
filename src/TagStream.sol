@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
+import "forge-std/console.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {SuperTokenV1Library} from "@superfluid-finance/ethereum-contracts/contracts/apps/SuperTokenV1Library.sol";
 import {ISuperToken} from "@superfluid-finance/ethereum-contracts/contracts/interfaces/superfluid/ISuperfluid.sol";
 import {ISETH} from "@superfluid-finance/ethereum-contracts/contracts/interfaces/tokens/ISETH.sol";
 import {ISuperfluidPool, PoolConfig} from "@superfluid-finance/ethereum-contracts/contracts/interfaces/agreements/gdav1/IGeneralDistributionAgreementV1.sol";
 
-import {EmptySuperfluidContract} from "./EmptySuperfluidContract.sol";
+import {ReceiverSuperfluidContract} from "./ReceiverSuperfluidContract.sol";
 
 contract TagStream {
     address public owner;
@@ -20,6 +21,8 @@ contract TagStream {
     mapping(string => bool) public repoPoolsCreated;
     // use this to get the receiver contract for a developer
     mapping(string => address) public receiverContracts;
+    // use this to get the developer's pools
+    mapping(string => string[]) public developerRepos;
 
     modifier onlyOwner() {
         require(owner == msg.sender, "Only Owner");
@@ -58,6 +61,22 @@ contract TagStream {
 
     /**
      * @dev Creates an streaming distribution to all the members of the pool
+     * @param repoId the id of the repo to distribute to
+     * @param _amount The amount of tokens to distribute (in Wei or equivalent)
+     * @param _duration the duration of your distribution (in seconds)
+     */
+    function flowDistributeToRepo(
+        string memory repoId,
+        uint _amount,
+        uint _duration
+    ) external onlyOwner {
+        ISuperfluidPool pool = createOrGetRepoPool(repoId);
+        flowDistribute(pool, _amount, _duration);
+    }
+
+    /**
+     * @dev Creates an streaming distribution to all the members of the pool
+     * @param pool the pool to distribute to
      * @param _amount The amount of tokens to distribute (in Wei or equivalent)
      * @param _duration the duration of your distribution (in seconds)
      * @notice Make sure the contract has enough allowance of the ERC-20 to allow the `transferFrom`
@@ -66,9 +85,16 @@ contract TagStream {
         ISuperfluidPool pool,
         uint _amount,
         uint _duration
-    ) external onlyOwner {
+    ) internal onlyOwner {
         underlyingToken.transferFrom(msg.sender, address(this), _amount);
+        underlyingToken.approve(address(acceptedToken), _amount);
         acceptedToken.upgrade(_amount);
+
+        console.log("amount", _amount);
+        console.log("duration", _duration);
+        console.log("underlyingToken balance", underlyingToken.balanceOf(address(this)));
+        console.log("acceptedToken balance", acceptedToken.balanceOf(address(this)));
+
         int96 _flowRate = int96(int256(_amount / _duration));
         acceptedToken.flowX(address(pool), _flowRate);
     }
@@ -106,7 +132,7 @@ contract TagStream {
     ) internal returns (address) {
         if (receiverContracts[developerId] == address(0)) {
             receiverContracts[developerId] = address(
-                new EmptySuperfluidContract(address(acceptedToken))
+                new ReceiverSuperfluidContract(address(acceptedToken), address(this))
             );
         }
         return receiverContracts[developerId];
@@ -124,7 +150,12 @@ contract TagStream {
                 developerId[i]
             );
             members[i] = receiverContract;
+            developerRepos[developerId[i]].push(repoId);
         }
         giveUnits(pool, members, units);
+    }
+
+    function getDeveloperRepos(string memory developerId) public view returns (string[] memory) {
+        return developerRepos[developerId];
     }
 }
