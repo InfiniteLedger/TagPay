@@ -101,17 +101,17 @@ contract TagStreamTest is Test {
             underlyingAcceptedToken.balanceOf(address(this))
         );
         ReceiverSuperfluidContract(dev1Receiver).connectToRepo(repo1);
+        ReceiverSuperfluidContract(dev1Receiver).setReceiver(dev1Wallet);
 
         // mock time passing
         vm.warp(block.timestamp + 10 days);
-
         console.log("tag stream balance", acceptedToken.balanceOf(address(tagStream)));
         console.log(
             "receiver1 superfluid tokens after stream",
             acceptedToken.balanceOf(dev1Receiver)
         );
 
-        vm.prank(dev1Wallet);
+        vm.startPrank(dev1Wallet);
         ReceiverSuperfluidContract(dev1Receiver).claimRewards();
         console.log(
             "receiver1 superfluid tokens after claim",

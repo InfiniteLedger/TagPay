@@ -16,9 +16,17 @@ contract TagStream {
     IERC20 public underlyingToken;
     PoolConfig private poolConfig;
 
+    // TODO: maybe create a struct for repo
+    // struct Repo {
+    //     string id;
+    //     string name;
+    //     string description;
+    // }
+    // mapping(string => Repo) public repos; - 
     // use this to get the pool for a repo
     mapping(string => ISuperfluidPool) public repoPools;
     mapping(string => bool) public repoPoolsCreated;
+
     // use this to get the receiver contract for a developer
     mapping(string => address) public receiverContracts;
     // use this to get the developer's pools
@@ -48,11 +56,11 @@ contract TagStream {
      * @param _units The array of units
      * @notice The method `updateMemberUnits` DOES NOT add units to a member but rather sets the units amount
      */
-    function giveUnits(
+    function _giveUnits(
         ISuperfluidPool pool,
         address[] memory _members,
         uint128[] memory _units
-    ) public onlyOwner {
+    ) internal {
         // Make sure your for loop does not exceed the gas limit
         for (uint256 i = 0; i < _members.length; i++) {
             pool.updateMemberUnits(_members[i], _units[i]);
@@ -70,8 +78,8 @@ contract TagStream {
         uint _amount,
         uint _duration
     ) external onlyOwner {
-        ISuperfluidPool pool = createOrGetRepoPool(repoId);
-        flowDistribute(pool, _amount, _duration);
+        ISuperfluidPool pool = _createOrGetRepoPool(repoId);
+        _flowDistribute(pool, _amount, _duration);
     }
 
     /**
@@ -81,7 +89,7 @@ contract TagStream {
      * @param _duration the duration of your distribution (in seconds)
      * @notice Make sure the contract has enough allowance of the ERC-20 to allow the `transferFrom`
      */
-    function flowDistribute(
+    function _flowDistribute(
         ISuperfluidPool pool,
         uint _amount,
         uint _duration
@@ -113,9 +121,9 @@ contract TagStream {
         }
     }
 
-    function createOrGetRepoPool(
+    function _createOrGetRepoPool(
         string memory repoId
-    ) public returns (ISuperfluidPool) {
+    ) internal returns (ISuperfluidPool) {
         if (!repoPoolsCreated[repoId]) {
             repoPools[repoId] = acceptedToken.createPool(
                 address(this),
@@ -127,12 +135,12 @@ contract TagStream {
     }
 
     // TODO: consider creating a receiver contract for other dependent repos
-    function getOrCreateReceiverContract(
+    function _getOrCreateReceiverContract(
         string memory developerId
     ) internal returns (address) {
         if (receiverContracts[developerId] == address(0)) {
             receiverContracts[developerId] = address(
-                new ReceiverSuperfluidContract(address(acceptedToken), address(this))
+                new ReceiverSuperfluidContract(address(acceptedToken), address(this), address(owner))
             );
         }
         return receiverContracts[developerId];
@@ -142,20 +150,24 @@ contract TagStream {
         string memory repoId,
         string[] memory developerId,
         uint128[] memory units
-    ) external {
-        ISuperfluidPool pool = createOrGetRepoPool(repoId);
+    ) external onlyOwner {
+        ISuperfluidPool pool = _createOrGetRepoPool(repoId);
         address[] memory members = new address[](developerId.length);
         for (uint256 i = 0; i < developerId.length; i++) {
-            address receiverContract = getOrCreateReceiverContract(
+            address receiverContract = _getOrCreateReceiverContract(
                 developerId[i]
             );
             members[i] = receiverContract;
             developerRepos[developerId[i]].push(repoId);
         }
-        giveUnits(pool, members, units);
+        _giveUnits(pool, members, units);
     }
 
     function getDeveloperRepos(string memory developerId) public view returns (string[] memory) {
         return developerRepos[developerId];
+    }
+
+    function getReceiverContract(string memory developerId) public view returns (address) {
+        return receiverContracts[developerId];
     }
 }
