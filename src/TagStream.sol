@@ -22,7 +22,8 @@ contract TagStream {
     //     string name;
     //     string description;
     // }
-    // mapping(string => Repo) public repos; - 
+    // mapping(string => Repo) public repos;
+
     // use this to get the pool for a repo
     mapping(string => ISuperfluidPool) public repoPools;
     mapping(string => bool) public repoPoolsCreated;
@@ -31,6 +32,8 @@ contract TagStream {
     mapping(string => address) public receiverContracts;
     // use this to get the developer's pools
     mapping(string => string[]) public developerRepos;
+    // TODO: find a better way to deal with it. Need both list to return and mapping to check if the pool is pushed.
+    mapping(string => mapping(string => bool)) public developerRepoPushed;
 
     modifier onlyOwner() {
         require(owner == msg.sender, "Only Owner");
@@ -97,12 +100,6 @@ contract TagStream {
         underlyingToken.transferFrom(msg.sender, address(this), _amount);
         underlyingToken.approve(address(acceptedToken), _amount);
         acceptedToken.upgrade(_amount);
-
-        console.log("amount", _amount);
-        console.log("duration", _duration);
-        console.log("underlyingToken balance", underlyingToken.balanceOf(address(this)));
-        console.log("acceptedToken balance", acceptedToken.balanceOf(address(this)));
-
         int96 _flowRate = int96(int256(_amount / _duration));
         acceptedToken.flowX(address(pool), _flowRate);
     }
@@ -140,7 +137,11 @@ contract TagStream {
     ) internal returns (address) {
         if (receiverContracts[developerId] == address(0)) {
             receiverContracts[developerId] = address(
-                new ReceiverSuperfluidContract(address(acceptedToken), address(this), address(owner))
+                new ReceiverSuperfluidContract(
+                    address(acceptedToken),
+                    address(this),
+                    address(owner)
+                )
             );
         }
         return receiverContracts[developerId];
@@ -158,16 +159,23 @@ contract TagStream {
                 developerId[i]
             );
             members[i] = receiverContract;
-            developerRepos[developerId[i]].push(repoId);
+            if (!developerRepoPushed[developerId[i]][repoId]) {
+                developerRepos[developerId[i]].push(repoId);
+                developerRepoPushed[developerId[i]][repoId] = true;
+            }
         }
         _giveUnits(pool, members, units);
     }
 
-    function getDeveloperRepos(string memory developerId) public view returns (string[] memory) {
+    function getDeveloperRepos(
+        string memory developerId
+    ) public view returns (string[] memory) {
         return developerRepos[developerId];
     }
 
-    function getReceiverContract(string memory developerId) public view returns (address) {
+    function getReceiverContract(
+        string memory developerId
+    ) public view returns (address) {
         return receiverContracts[developerId];
     }
 }
