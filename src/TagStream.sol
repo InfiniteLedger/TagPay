@@ -70,6 +70,17 @@ contract TagStream {
         }
     }
 
+    // should not be public method?
+    function flowToRepo(
+        string memory repoId,
+        uint _amount,
+        uint _duration
+    ) external {
+        ISuperfluidPool pool = _createOrGetRepoPool(repoId);
+        int96 flowRate = int96(int256(_amount / _duration));
+        acceptedToken.flowX(address(pool), flowRate);
+    }
+
     /**
      * @dev Creates an streaming distribution to all the members of the pool
      * @param repoId the id of the repo to distribute to
@@ -147,24 +158,38 @@ contract TagStream {
         return receiverContracts[developerId];
     }
 
-    function giveUnitsToRepoContributors(
+    function giveUnitsForRepo(
         string memory repoId,
-        string[] memory developerId,
-        uint128[] memory units
+        string[] memory developerIds,
+        uint128[] memory developerUnits,
+        string[] memory dependentRepoIds,
+        uint128[] memory dependentUnits
     ) external onlyOwner {
         ISuperfluidPool pool = _createOrGetRepoPool(repoId);
-        address[] memory members = new address[](developerId.length);
-        for (uint256 i = 0; i < developerId.length; i++) {
+        address[] memory members = new address[](developerIds.length);
+        address[] memory dependentMembers = new address[](
+            dependentRepoIds.length
+        );
+
+        for (uint256 i = 0; i < developerIds.length; i++) {
             address receiverContract = _getOrCreateReceiverContract(
-                developerId[i]
+                developerIds[i]
             );
             members[i] = receiverContract;
-            if (!developerRepoPushed[developerId[i]][repoId]) {
-                developerRepos[developerId[i]].push(repoId);
-                developerRepoPushed[developerId[i]][repoId] = true;
+            if (!developerRepoPushed[developerIds[i]][repoId]) {
+                developerRepos[developerIds[i]].push(repoId);
+                developerRepoPushed[developerIds[i]][repoId] = true;
             }
         }
-        _giveUnits(pool, members, units);
+        _giveUnits(pool, members, developerUnits);
+
+        for (uint256 i = 0; i < dependentRepoIds.length; i++) {
+            _createOrGetRepoPool(dependentRepoIds[i]);
+            dependentMembers[i] = _getOrCreateReceiverContract(
+                dependentRepoIds[i]
+            );
+        }
+        _giveUnits(pool, dependentMembers, dependentUnits);
     }
 
     function getDeveloperRepos(
