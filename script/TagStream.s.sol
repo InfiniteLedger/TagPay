@@ -9,9 +9,7 @@ contract TagStreamScript is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
-        TagStream tagStream = new TagStream(
-            address(0xBD326E3069543a09e66b9f3a0a891c9e6A1eac29)
-        );
+        new TagStream(address(0xBD326E3069543a09e66b9f3a0a891c9e6A1eac29));
 
         vm.stopBroadcast();
     }
